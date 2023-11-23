@@ -79,10 +79,11 @@ class MDPAgent(Agent):
         return maze_copy
     
     # Initializes the utility of each state in the maze
-    def map(self, state, food_utility, ghost_utility):
+    def map(self, state, food_utility, ghost_utility, capsule_utility):
         corners = api.corners(state)
         walls = api.walls(state)
         food = api.food(state)
+        capsules = api.capsules(state)
         ghost = api.ghosts(state)
 
         size = corners[len(corners) - 1]
@@ -96,6 +97,8 @@ class MDPAgent(Agent):
                     maze[y][x] = None
                 elif (x, y) in ghost:
                     maze[y][x] = ghost_utility
+                elif (x, y) in capsules:
+                    maze[y][x] = capsule_utility
                 elif (x, y) in food:
                     maze[y][x] = food_utility
                 else:
@@ -118,7 +121,7 @@ class MDPAgent(Agent):
         return nearby
 
     # Calculates the utility of a state
-    def bellman(self, position, maze, reward, discount):
+    def bellman(self, position, maze, reward, discount, food_utility, capsule_utility, ghost_utility):
         near = self.nearby(position, maze)
 
         utilities = []
@@ -131,20 +134,26 @@ class MDPAgent(Agent):
             right_utility = maze[right[1]][right[0]]
             left_utility = maze[left[1]][left[0]]
 
+            # change reward to match the state youre facing
+
             util = reward + discount * (0.8 * forward_utility + 0.1 * right_utility + 0.1 * left_utility)
+            #print key, util
             utilities.append(util)
 
         # Returns the maximum utility
         return max(utilities)
 
-    def value_iteration(self, current_maze, reward, discount):
+    def value_iteration(self, current_maze, reward, discount, ghosts, food_utility, capsule_utility, ghost_utility):
         previous_maze = []
+        counter = 0
         while (previous_maze != current_maze):
+            counter = counter + 1
+            #self.print_maze(current_maze)
             previous_maze = self.copy(current_maze)
             for y in range(len(current_maze)):
                 for x in range(len(current_maze[0])):
-                    if current_maze[y][x] is not None:
-                        current_maze[y][x] = self.bellman((x, y), previous_maze, reward, discount)
+                    if current_maze[y][x] is not None and (x, y) not in ghosts:
+                        current_maze[y][x] = self.bellman((x, y), previous_maze, reward, discount, food_utility, capsule_utility, ghost_utility)
 
         return current_maze
     
@@ -174,9 +183,10 @@ class MDPAgent(Agent):
         reward = -1
         discount = 0.95
         food_utility = 7
+        capsule_utility = 10
         ghost_utility = -500
         
-        actions = [Directions.NORTH, Directions.SOUTH, Directions.EAST, Directions.WEST]
+        """ actions = [Directions.NORTH, Directions.SOUTH, Directions.EAST, Directions.WEST]
 
         size = corners[len(corners) - 1]
         columns = size[0] + 1 # x coordinate 
@@ -187,10 +197,11 @@ class MDPAgent(Agent):
         for i in range(columns):
             for j in range(rows):
                 if (i, j) not in walls:
-                    states.append((i, j))
+                    states.append((i, j)) """
 
-        maze = self.map(state, food_utility, ghost_utility) # Initialize the maze
-        maze = self.value_iteration(maze, reward, discount) # Perform value iteration on the maze
+        maze = self.map(state, food_utility, ghost_utility, capsule_utility) # Initialize the maze
+        #self.print_maze(maze)
+        maze = self.value_iteration(maze, reward, discount, api.ghosts(state), food_utility, capsule_utility, ghost_utility) # Perform value iteration on the maze
 
         #print "Pacman", pacman
 
@@ -199,9 +210,13 @@ class MDPAgent(Agent):
         near = self.nearby(pacman, maze)
         max_utility = (float("-inf"), Directions.STOP)
         for key in near:
-            if near[key] >= max_utility[0]:
-                max_utility = (near[key], key)
+            #print "key", key
+            position = near[key]
+            if maze[position[1]][position[0]] > max_utility[0]:
+                #print maze[position[1]][position[0]]
+                max_utility = (maze[position[1]][position[0]], key)
 
+        #print "Nearby utility", near
         print "Max utility", max_utility
         # Random choice between the legal options.
         return api.makeMove(max_utility[1], legal)
