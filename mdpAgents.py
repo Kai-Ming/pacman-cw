@@ -183,6 +183,7 @@ class MDPAgent(Agent):
     
         return next_maze
 
+    # Chooses the action to tak based on value iteration
     def getAction(self, state):
         # Get the actions we can try, and remove "STOP" if that is one of them.
         legal = api.legalActions(state)
