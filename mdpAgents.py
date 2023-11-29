@@ -41,13 +41,15 @@ class MDPAgent(Agent):
     def __init__(self):
         print "Starting up MDPAgent!"
         name = "Pacman"
+
+        self.actions = [Directions.NORTH, Directions.SOUTH, Directions.EAST, Directions.WEST]
         
         self.reward = -1
-        self.discount = 0.995
+        self.discount = 0.95
         self.food_utility = 20
         self.capsule_utility = 50
         self.ghost_utility = -1000000
-        self.scared_ghost_utility = 200
+        self.scared_ghost_utility = 1000
 
     # Gets run after an MDPAgent object is created and once there is
     # game state to access.
@@ -118,9 +120,8 @@ class MDPAgent(Agent):
     
     # Returns a list of tuples containing the positions of the states around the current state
     def nearby(self, position, maze):
-        actions = [Directions.NORTH, Directions.SOUTH, Directions.EAST, Directions.WEST]
         nearby = {}
-        for action in actions:
+        for action in self.actions:
             forward_position = self.forward(position, action)
             # There is a wall in front, so we can't move there
             if maze[forward_position[1]][forward_position[0]] is None:
@@ -129,14 +130,6 @@ class MDPAgent(Agent):
             else:
                 nearby[action] = forward_position
         return nearby
-    
-    # Determines if pacman is facing a wall
-    def move(self, position, direction, maze):
-        forward_position = self.forward(position, direction)
-        if maze[forward_position[1]][forward_position[0]] is None:
-            return False
-        else:
-            return True
 
     # Calculates the utility of a state
     def bellman(self, position, maze, state):
@@ -189,19 +182,6 @@ class MDPAgent(Agent):
                     next_maze[y][x] = self.bellman((x, y), current_maze, state)
     
         return next_maze
-    
-    """ def print_maze(self, maze):
-        columns = len(maze[0]) # x coordinate
-        rows = len(maze) # y coordinate
-
-        for i in range(rows):
-            for j in range(columns):
-                # print grid elements with no newline
-                print maze[rows - (i + 1)][j], "|",
-            # A new line after each line of the grid
-            print 
-        # A line after the grid
-        print """
 
     def getAction(self, state):
         # Get the actions we can try, and remove "STOP" if that is one of them.
@@ -219,16 +199,14 @@ class MDPAgent(Agent):
             counter = counter + 1  
             maze = self.value_iteration(maze, state) # Updates the utility of each state in the maze
 
-        near = self.nearby(pacman, maze) # Gets the utilities of the immediate states around pacman
+        #near = self.nearby(pacman, maze) # Gets the utilities of the immediate states around pacman
         max_utility = (float("-inf"), Directions.STOP) 
 
         # Picks the highest utility state
-        for key in near:
-            position = near[key]
-            if self.move(pacman, key, maze):
-                # The direction is not going towards a wall
-                if maze[position[1]][position[0]] > max_utility[0]:
-                    max_utility = (maze[position[1]][position[0]], key)
+        for direction in legal:
+            position = self.forward(pacman, direction)
+            if maze[position[1]][position[0]] > max_utility[0]:
+                max_utility = (maze[position[1]][position[0]], direction)
 
         # Moves to the state that has the highest utility near pacman
         return api.makeMove(max_utility[1], legal)
