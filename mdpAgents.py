@@ -49,7 +49,8 @@ class MDPAgent(Agent):
         self.food_utility = 20
         self.capsule_utility = 50
         self.ghost_utility = -1000000
-        self.scared_ghost_utility = 1000
+        self.near_ghost_utility = -750000
+        self.scared_ghost_utility = 200
 
     # Gets run after an MDPAgent object is created and once there is
     # game state to access.
@@ -94,7 +95,11 @@ class MDPAgent(Agent):
         food = api.food(state)
         capsules = api.capsules(state)
         ghost = api.ghosts(state)
-        scared_ghost = api.ghostStates(state)
+        scared_ghost = api.ghostStatesWithTimes(state)
+
+        scared_ghost_time = scared_ghost[0][1]
+
+        nearby_ghosts = self.nearby_ghosts(ghost)
 
         size = corners[len(corners) - 1]
         columns = size[0] + 1 # x coordinate 
@@ -105,8 +110,9 @@ class MDPAgent(Agent):
             for x in range(columns):
                 if (x, y) in walls:
                     maze[y][x] = None
-                elif ((x, y), 1) in scared_ghost:
-                    maze[y][x] = self.scared_ghost_utility
+                elif scared_ghost_time > 5:
+                    if ((x, y), scared_ghost_time) in scared_ghost:
+                        maze[y][x] = self.scared_ghost_utility
                 elif (x, y) in ghost:
                     maze[y][x] = self.ghost_utility
                 elif (x, y) in capsules:
@@ -115,6 +121,12 @@ class MDPAgent(Agent):
                     maze[y][x] = self.food_utility
                 else:
                     maze[y][x] = 0
+        
+        if columns > 10:
+            if scared_ghost_time < 5:
+                for position in nearby_ghosts:
+                    if maze[int(position[1])][int(position[0])] is not None:
+                        maze[int(position[1])][int(position[0])] = self.near_ghost_utility
 
         return maze
     
@@ -130,15 +142,42 @@ class MDPAgent(Agent):
             else:
                 nearby[action] = forward_position
         return nearby
+    
+    # Gets the states adjacent to the ghosts
+    def nearby_ghosts(self, ghosts):
+        near = []
+        for ghost in ghosts:
+            for x in range(-2, 3):
+                for y in range(-2, 3):
+                    if not (x == 0 and y == 0):
+                        near.append((ghost[0] + x, ghost[1] + y))
+        return near
+    
+    def nearby_maze_ghosts(self, ghosts, maze):
+        near = []
+        for ghost in ghosts:
+            for x in range(-2, 3):
+                for y in range(-2, 3):
+                    if not (x == 0 and y == 0) and maze[int(ghost[1] + y)][int(ghost[0] + x)] is not None:
+                        near.append((ghost[0] + x, ghost[1] + y))
+        return near
+    
+    """ def check_bounds(position, maze):
+        if position[0] < 0 or position[1] < 0:
+            return False
+        elif position[0] >= range() """
 
     # Calculates the utility of a state
     def bellman(self, position, maze, state):
         ghosts = api.ghosts(state)
         food = api.food(state)
         capsules = api.capsules(state)
-        scared_ghost = api.ghostStates(state)
+        scared_ghost = api.ghostStatesWithTimes(state)
+
+        scared_ghost_times = scared_ghost[0][1]
 
         near = self.nearby(position, maze)
+        nearby_ghosts = self.nearby_maze_ghosts(ghosts, maze)
 
         utilities = []
         for key in near:
@@ -154,8 +193,11 @@ class MDPAgent(Agent):
 
             # change reward to match the state youre facing
             reward = self.reward
-            if (forward, 1) in scared_ghost:
-                reward = self.scared_ghost_utility
+            if scared_ghost_times > 5:
+                if (forward, scared_ghost_times) in scared_ghost:
+                    reward = self.scared_ghost_utility
+            elif forward in nearby_ghosts:
+                reward = self.near_ghost_utility
             elif forward in ghosts:
                 reward = self.ghost_utility
             elif forward in food:
@@ -192,7 +234,22 @@ class MDPAgent(Agent):
 
         pacman = api.whereAmI(state)
 
-        maze = self.map(state) # Initialize the maze
+        #maze = self.map(state) # Initialize the maze
+
+        walls = api.walls(state)     
+        ghosts = api.ghosts(state)  
+        corners = api.corners(state)
+        size = corners[len(corners) - 1]
+        columns = size[0] + 1 # x coordinate 
+        rows = size[1] + 1 # y coordinate
+
+        maze = [[0 for x in range(columns)] for y in range(rows)]
+
+        for wall in walls:
+            maze[wall[1]][wall[0]] = None
+
+        for ghost in ghosts:
+            maze[ghost[1]][ghost[0]] = self.ghost_utility
 
         # Perform value iteration on the maze over 20 iterations
         counter = 0
